@@ -1,4 +1,4 @@
-
+#define _USE_MATH_DEFINES
 #include <iostream> // Inclut la bibliothèque standard pour les entrées et sorties (cin, cout).
 // std::cout permet d'afficher des messages dans la console. std::endl insère une fin de ligne ("\n").
 #include <fstream> // Inclut la bibliothèque pour manipuler les fichiers (lecture et écriture).
@@ -111,6 +111,9 @@ public:
         if (nb_row()!=0){
             return data[0].size() ;
         }
+        else{
+            return 0 ;
+        }
     }
 
     void discretisation(float precision){ //La matrice echantillon est passée en référence (Matrix& echantillon).
@@ -128,31 +131,44 @@ public:
         // Vérifier si l'ouverture a réussi
         if (!fichier) {
             std::cerr << "Erreur lors de l'ouverture du fichier !" << std::endl;
-            return 1;
+            return;
         }
 
-        std::vector<std::vector<std::int>> table; // Déclare un vecteur de vecteurs de chaînes pour représenter la matrice.
-        std::vector<std::int> zeroRow(std::ceil(M_PI/precision),0);
+        std::vector<std::vector<int>> table; // Déclare un vecteur de vecteurs de chaînes pour représenter la matrice.
+        std::vector<int> zeroRow(static_cast<int>(std::round(2*M_PI / precision)+1), 0);
 
-        for (i=1; i <= std::ceil(M_PI/precision), i++){ //Créer la matrice remplit de 0.
+        for (int i=1; i <= std::round(2*M_PI/precision)+1; i++){ //Créer la matrice remplit de 0.
             table.push_back(zeroRow);
         }
-
+        /*std::cout<<"table"<<std::endl;
+        for (const auto& row : table) {
+            for (const auto& value : row) {
+                std::cout << value << " ";
+            }
+            std::cout << std::endl;
+        }*/
+        
         // Parcourir les lignes de la matrice en ignorant la première ligne (en-tête).
         for (size_t i = 1; i < data.size(); i++) { 
             try {
                 // Convertit la première colonne en float (X).
-                float x = std::stof(data[i][0]);  
+                float x = std::stof(data[i][0]) + M_PI;  
 
                 // Convertit la deuxième colonne en float (Y).
-                float y = std::stof(data[i][1]);  
+                float y = std::stof(data[i][1]) + M_PI;  
 
                 // Arrondi les valeurs en fonction de la précision demandée.
                 int x_round = std::round(x / precision);
                 int y_round = std::round(y / precision);
-                
+                //std::cout<<"x, y"<< std::ceil(2*M_PI / precision) << " "<< x_round<<" "<<y_round<<std::endl;
                 //remplissage de la matrice
-                table[y_round][x_round]+=1;
+                if (x_round < 0 || x_round >= table.size() || y_round < 0 || y_round >= table.size()) {
+                    std::cerr << "Erreur : indices hors limites ! x_round=" << x_round << ", y_round=" << y_round << std::endl;
+                } else {
+                    table[y_round][x_round] += 1;
+                }
+                
+
             } 
             catch (const std::exception& e) { // Capture les erreurs éventuelles (ex: conversion impossible)
                 std::cerr << "Erreur de conversion à la ligne " << i << ": " << e.what() << std::endl;
@@ -165,8 +181,11 @@ public:
             }
             fichier << std::endl;
         }    
-        fichier.close();
-
+        if (fichier.is_open()) {
+            fichier.close();
+        }
+        else {std::cout<<"fichier non ouvert ?"<<std::endl;} 
+        //std::cout << "Fini !"<<std::endl;
     } // fin discretisation
     
 
@@ -229,12 +248,12 @@ int main() {
     
     //std::cout << "\nMatrice après suppression :" << std::endl;
     matrix.affiche_name();
-    matrix.affiche(); // Affiche la matrice après suppression de la colonne.
+    //matrix.affiche(); // Affiche la matrice après suppression de la colonne.
     
 
     //ECHANTILLONNAGE
-    float precision = 0.1;  // Définit la précision pour arrondir les valeurs
+    float precision = 0.3;  // Définit la précision pour arrondir les valeurs
     matrix.discretisation(precision); // Appliquer la discretisation
-
+    //std::cout<<"test"<<std::endl;
     return 0; // Indique que le programme s'est terminé avec succès (code de retour 0 par convention).
 }
