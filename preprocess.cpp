@@ -9,6 +9,7 @@
 // std::stringstream permet de manipuler des chaînes de caractères comme des flux d'entrée/sortie.
 #include <set> 
 #include <cmath>
+#include <filesystem>
 
 // Définition d'une classe Matrix pour stocker et manipuler les données sous forme de matrice.
 class Matrix {
@@ -24,14 +25,25 @@ public:
         std::string supr2 = ".txt" ;
         std::string new_name = name_file;
         size_t pos1 = new_name.find(supr);
-    if (pos1 != std::string::npos) {  // Vérifie si trouvé
-        new_name.erase(pos1, supr.length());
-    }
+        if (pos1 != std::string::npos) {  // Vérifie si trouvé
+            new_name.erase(pos1, supr.length());
+        }
 
-    size_t pos2 = new_name.find(supr2);
-    if (pos2 != std::string::npos) {  // Vérifie si trouvé
-        new_name.erase(pos2, supr2.length());
-    }
+        size_t pos2 = new_name.find(supr2);
+        if (pos2 != std::string::npos) {  // Vérifie si trouvé
+            new_name.erase(pos2, supr2.length());
+        }
+
+        for (char &c : new_name) {
+            if (c == '\\') c = '/';
+        }
+    
+        // Trouver la dernière occurrence de '/'
+        size_t pos = new_name.find_last_of("/");
+    
+        // Extraire la dernière partie du chemin
+        new_name = (pos != std::string::npos) ? new_name.substr(pos + 1) : new_name;
+
         name = new_name ;
     }
 
@@ -123,7 +135,9 @@ public:
             return;  // Quitte la fonction si la matrice n'a pas 2 colonnes.
         }
         
-        std::string nomFichier = "mon_fichier.txt";
+        //std::filesystem::path outputDir = "C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions";
+        std::filesystem::path outputDir = "./Distributions";
+        std::string nomFichier = (outputDir / (name + "_" + std::to_string(precision) + ".txt")).string();
 
         // Ouvrir le fichier en mode lecture et écriture (création si inexistant)
         std::fstream fichier(nomFichier, std::ios::in | std::ios::out | std::ios::app);
@@ -224,12 +238,10 @@ void readFileToMatrix(const std::string& filename, Matrix& matrix) {
     file.close(); // Ferme le fichier après lecture.
 }
 
-// Fonction principale du programme.
-int main() {
+void Work_one_document(std::string filename){
     Matrix matrix; // Instancie un objet Matrix pour stocker les données.
-    readFileToMatrix("Angles_info_ALA_ALA_CYS.txt", matrix); // Appelle la fonction pour lire les données du fichier .txt et remplir la matrice.
+    readFileToMatrix(filename, matrix); // Appelle la fonction pour lire les données du fichier .txt et remplir la matrice.
     matrix.remove0(matrix.indice("CIS(0)/TRANS(1)")) ;
-
     matrix.removeColumn(matrix.indice("CIS(0)/TRANS(1)")); 
     matrix.removeColumn(matrix.indice("Res1")); 
     matrix.removeColumn(matrix.indice("Res2")); 
@@ -254,6 +266,20 @@ int main() {
     //ECHANTILLONNAGE
     float precision = 0.3;  // Définit la précision pour arrondir les valeurs
     matrix.discretisation(precision); // Appliquer la discretisation
-    //std::cout<<"test"<<std::endl;
-    return 0; // Indique que le programme s'est terminé avec succès (code de retour 0 par convention).
+}
+
+int main() {
+    std::string dossier = "../angles_scop-95_2.07-LGBTS-MF_0.6_0.2"; // Remplace par le chemin du dossier contenant les fichiers
+
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(dossier)) {
+            if (entry.is_regular_file()) { // Vérifie que c'est un fichier
+                Work_one_document(entry.path().string());
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Erreur : " << e.what() << std::endl;
+    }
+
+    return 0;
 }
