@@ -11,7 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <random>
-//#include <opencv2/opencv.hpp>
+#include <opencv2/opencv.hpp>
 
 
 struct Angles {
@@ -144,57 +144,63 @@ public :
 
         }
 
-    /*{}
-    void affiche_image() {
-        if (data.empty()) {
-            std::cerr << "Aucune donnée à afficher." << std::endl;
-            return;
-        }
-
-        int rows = data.size();
-        int cols = data[0].size();
-        cv::Mat img(rows, cols, CV_8UC1);
-
-        int max_val = 0;
-        for (const auto& row : data) {
-            for (int val : row) {
-                if (val > max_val) max_val = val;
+        void affiche_image() {
+            if (data.empty()) {
+                std::cerr << "Aucune donnée à afficher." << std::endl;
+                return;
             }
-        }
-
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                img.at<uchar>(i, j) = static_cast<uchar>((data[i][j] * 255) / max_val);
+    
+            int rows = data.size();
+            int cols = data[0].size();
+            int scale = 10; // Facteur d'agrandissement
+            cv::Mat img(rows * scale, cols * scale, CV_8UC1);
+    
+            float max_val = 0;
+            for (const auto& row : data) {
+                for (float val : row) {
+                    if (val > max_val) {
+                        max_val = val;
+                    }
+                }
             }
-        }
-
-        cv::Mat img_color;
-        cv::applyColorMap(img, img_color, cv::COLORMAP_JET);
-
-        // Enregistrement de l'image
-        std::string filename = name + ".png";
-        cv::imwrite(filename, img_color);
-        std::cout << "Image sauvegardée sous: " << filename << std::endl;
-
-        cv::imshow("Matrice Colorée", img_color);
-        cv::waitKey(0);
-    }*/
+    
+            for (int i = 0; i < rows; i++) {
+                for (int j = 0; j < cols; j++) {
+                    uchar pixel_value = static_cast<uchar>((data[i][j] * 255) / max_val);
+                    cv::rectangle(img, 
+                                  cv::Point(j * scale, i * scale),
+                                  cv::Point((j + 1) * scale - 1, (i + 1) * scale - 1),
+                                  cv::Scalar(pixel_value),
+                                  cv::FILLED);
+                }
+            }
+    
+            cv::Mat img_color;
+            cv::applyColorMap(img, img_color, cv::COLORMAP_JET);
+    
+            // Enregistrement de l'image
+            std::string filename = name + ".png";
+            cv::imwrite(filename, img_color);
+            std::cout << "Image sauvegardée sous: " << filename << std::endl;
+    
+            cv::imshow("Matrice Colorée", img_color);
+            cv::waitKey(0);
+    }
 };
 
 
 
 int main() {
     Matrix_Distrib ds;
-    std::cout << "test" << std::endl;
     ds.ReadFrom_txt("C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions/ALA_ALA_ALA_0.300000.txt");
-    ds.affiche_nom();
     ds.normalisation() ;
     //ds.affiche();
     //std::cout<<ds.norme()<<std::endl;
 
     Angles test = ds.tirage() ;
     std::cout << "Point : (" << test.Phi_res1 << ", " << test.Phi_res2 << ")" << std::endl;
-    //ds.affiche_image();
+    std::cout<<"gfdsjhklm"<<std::endl;
+    ds.affiche_image();
 
     return 0;
 }
