@@ -133,12 +133,13 @@ public :
                 //std::cout<<compte<<" <=  "<<random_number<<std::endl;
                 if (compte>=random_number){
                     std::cout<<precision<<"   "<<col<< "   "<<line<<std::endl;
-                    Angles a = {col*precision-M_PI, line*precision-M_PI} ;
+                    Angles a = {(col-1)*precision-M_PI, (line-1)*precision-M_PI} ;
                     
                     return a ;
                 }
-            col = 0.0 ;
+            
             }
+            col = 0.0 ;
         }
         return {0, 0};
 
@@ -168,8 +169,8 @@ public :
                 for (int j = 0; j < cols; j++) {
                     uchar pixel_value = static_cast<uchar>((data[i][j] * 255) / max_val);
                     cv::rectangle(img, 
-                                  cv::Point(j * scale, i * scale),
-                                  cv::Point((j + 1) * scale - 1, (i + 1) * scale - 1),
+                                  cv::Point(j * scale, (rows - 1 - i) * scale), // Inversion des lignes
+                                  cv::Point((j + 1) * scale - 1, (rows - i) * scale - 1),
                                   cv::Scalar(pixel_value),
                                   cv::FILLED);
                 }
@@ -193,13 +194,13 @@ public :
 int main() {
     Matrix_Distrib ds;
     ds.ReadFrom_txt("C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions/ALA_ALA_ALA_0.300000.txt");
+        //C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions_test/AAA_AAA_AAA_0.300000.txt");
     ds.normalisation() ;
     //ds.affiche();
     //std::cout<<ds.norme()<<std::endl;
 
     Angles test = ds.tirage() ;
     std::cout << "Point : (" << test.Phi_res1 << ", " << test.Phi_res2 << ")" << std::endl;
-    std::cout<<"gfdsjhklm"<<std::endl;
     ds.affiche_image();
 
     return 0;
