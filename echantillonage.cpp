@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <random>
 #include <opencv2/opencv.hpp>
+#include <functional>
 
 
 struct Angles {
@@ -20,13 +21,105 @@ struct Angles {
 };
 
 
+// Fonction pour résoudre le système linéaire
+std::vector<float> solve(std::vector<std::vector<float>> A, std::vector<float> Y) {
+    int n = A.size();
+
+    for (int i = 0; i < n; i++) {
+        int maxRow = i;
+        for (int k = i + 1; k < n; k++) {
+            if (abs(A[k][i]) > abs(A[maxRow][i])) {
+                maxRow = k;
+            }
+        }
+
+        std::swap(A[i], A[maxRow]);
+        std::swap(Y[i], Y[maxRow]);
+        for (int k = i + 1; k < n; k++) {
+            float c = A[k][i] / A[i][i];
+            for (int j = i; j < n; j++) {
+                A[k][j] -= c * A[i][j];
+            }
+            Y[k] -= c * Y[i];
+        }
+    }
+    std::vector<float> X(n);
+    for (int i = n - 1; i >= 0; i--) {
+        X[i] = Y[i];
+        for (int j = i + 1; j < n; j++) {
+            X[i] -= A[i][j] * X[j];
+        }
+        X[i] /= A[i][i];
+    }
+
+    return X;
+}
+
+std::vector<float> interpolerLinear(float x1, float y1, float x2, float y2) {
+    std::vector<float> X(3);
+    X[0] = 0 ;
+    X[1] = (y2-y1)/(x2-x1) ;
+    X[2] = y1-X[1]*x1 ;
+    return X ;
+}
+// Fonction d'interpolation quadratique
+std::vector<float> interpolerQuadratique(float x1, float y1, float x2, float y2, float x3, float y3) {
+    std::vector<std::vector<float>> A = {
+        {x1 * x1, x1, 1},
+        {x2 * x2, x2, 1},
+        {x3 * x3, x3, 1}
+    };
+
+    std::vector<float> Y = {y1, y2, y3};
+    return solve(A, Y);
+}
+
+
+// Fonction densité f(x) = ax^2 + bx + c
+float density(float x, float a, float b, float c) {
+    return a*x*x + b*x + c;
+}
+
+float methodeRejet(float a, float b, float c, float xmin, float xmax) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dist_x(xmin, xmax);
+
+    // Trouver le maximum de f(x) sur [xmin, xmax]
+    float fmax ;
+    if (a!=0 & xmin <-b/(2*a) & -b/(2*a)<xmax){
+        fmax = std::max({density(xmin, a, b, c), density(xmax, a, b, c),
+            density(-b/(2*a), a, b, c)}); // sommet de la parabole
+    } else{
+        fmax = std::max({density(xmin, a, b, c), density(xmax, a, b, c)});
+    }
+
+    std::uniform_real_distribution<> dist_y(0.0, fmax);
+
+    int secure = 0 ;
+    while (secure <= 10000) {
+        float x = dist_x(gen);
+        float y = dist_y(gen);
+
+        if (y <= density(x, a, b, c)) {
+            return x;
+        }
+        secure += 1;
+    }
+    std::cout << "Aucun tirage réussi" <<std::endl;
+}
+
+
+
 class Matrix_Distrib{
 private :
     std::vector<std::vector<float>> data;
     std::string name ;
     float precision ; 
 public :
-
+    void change_precision(const float p){
+        precision = p ;
+    }
     void change_name(const std::string& name_file){
         std::string supr = "Angles_info_" ;
         std::string supr2 = ".txt" ;
@@ -58,6 +151,10 @@ public :
         std::cout<<name<<std::endl;
     }
 
+    void addRow(const std::vector<float>& row) {
+        data.push_back(row);
+    }
+
     void affiche(){
         for (auto& row : data){
             for (float value : row){
@@ -84,7 +181,7 @@ public :
             }
                 
             if (!row.empty()) { // Vérifie si la ligne n'est pas vide.
-                data.push_back(row); // Ajoute la ligne à la matrice en appelant la méthode addRow().
+                data.push_back(row);
             }
         }
         std::cout << filename << std::endl;
@@ -115,7 +212,7 @@ public :
         }
     }
 
-    Angles tirage(){
+    Angles tiragePalier(){
         std::random_device rd;  
         std::mt19937 gen(rd()); 
         std::uniform_real_distribution<float> distrib(0.0, 1.0);
@@ -126,66 +223,202 @@ public :
         float line = 0 ;
         float col = 0 ;
         for (auto& row : data){
-            line += 1.0 ;
             for (auto& value : row){
-                col += 1.0 ;
                 compte += value;
                 //std::cout<<compte<<" <=  "<<random_number<<std::endl;
                 if (compte>=random_number){
-                    std::cout<<precision<<"   "<<col<< "   "<<line<<std::endl;
-                    Angles a = {(col-1)*precision-M_PI, (line-1)*precision-M_PI} ;
-                    
+                    //std::cout<<precision<<"   "<<col<< "   "<<line<<std::endl;
+                    Angles a = {(col)*precision-M_PI, (line)*precision-M_PI} ;
                     return a ;
                 }
-            
+                col += 1.0 ;
             }
+            line += 1.0 ;
             col = 0.0 ;
         }
         return {0, 0};
 
+    }
+
+    Angles tirageQuadratique(){
+        std::random_device rd;  
+        std::mt19937 gen(rd()); 
+        std::uniform_real_distribution<float> distrib(0.0, 1.0);
+
+        double random_number = distrib(gen);
+
+        float compte = 0;
+        float line = 0 ;
+        float col = 0 ;
+        float phi1, phi2;
+        std::vector<float> coef_spline ;
+        float a, b, c ;
+        float zeros = 0.0 ;
+        for (auto& row : data){
+            for (auto& value : row){
+                
+                compte += value;
+                if (compte>=random_number){
+                    if (col == 0){
+                        coef_spline = interpolerQuadratique((col)*precision-M_PI, value, (-1)*precision-M_PI, data[line][data.size()-1], (col+1)*precision-M_PI, data[line][col+1]) ;
+                    } else if (col+1 >= data.size()){
+                        coef_spline = interpolerQuadratique((col)*precision-M_PI, value, (col-1)*precision-M_PI, data[line][col-1], (col+1)*precision-M_PI, data[line][0]) ;
+                    } else {
+                        coef_spline = interpolerQuadratique((col)*precision-M_PI, value, (col-1)*precision-M_PI, data[line][col-1], (col+1)*precision-M_PI, data[line][col+1]) ;
+                    }   
+                    a = coef_spline[0];
+                    b = coef_spline[1];
+                    c = coef_spline[2];
+                    phi1 = methodeRejet(a, b, c, std::max((col*precision-precision/2), zeros)-M_PI, std::min((col*precision+precision/2-M_PI), M_PI));
+
+                    if (line == 0){
+                        coef_spline = interpolerQuadratique((line)*precision-M_PI, value, (-1)*precision-M_PI, data[data.size()-1][col], (line+1)*precision-M_PI, data[line+1][col]) ;
+                    } else if (line+1 >= data.size()){
+                        coef_spline = interpolerQuadratique((line)*precision-M_PI, value, (line-1)*precision-M_PI, data[line-1][col], (line+1)*precision-M_PI, data[0][col]) ;
+                    } else {
+                        coef_spline = interpolerQuadratique((line)*precision-M_PI, value, (line-1)*precision-M_PI, data[line-1][col], (line+1)*precision-M_PI, data[line+1][col]) ;
+                    }
+                    a = coef_spline[0];
+                    b = coef_spline[1];
+                    c = coef_spline[2];
+                    phi2 = methodeRejet(a, b, c, std::max((line*precision-precision/2), zeros)-M_PI, std::min((line*precision+precision/2-M_PI), M_PI));
+                    Angles angl = {phi1, phi2} ;
+                
+                    return angl ;
+                }
+                col += 1.0 ;
+            }
+            col = 0.0 ;
+            line += 1.0 ;
+        }
+        return {0, 0};
+
+    }
+
+    void create_echantillon(Matrix_Distrib& echantillon, int n = 4000){
+        //std::filesystem::path outputDir = "./Echantillon_genere";
+        //std::string nomFichier = (outputDir / (name + "_" + std::to_string(precision) + "_generation.txt")).string();
+        std::string nomFichier = "C:/Users/Octave/Desktop/INSA4A_2/projet/code/Echantillon_genere/" + name + "_" + "_generation.txt";
+        // Ouvrir le fichier en mode lecture et écriture (création si inexistant)
+        std::fstream fichier(nomFichier, std::ios::in | std::ios::out | std::ios::app);
+        // Vérifier si l'ouverture a réussi
+        if (!fichier) {
+            std::cerr << "Erreur lors de l'ouverture du fichier !" << std::endl;
+            return;
+        }
+        for (int i =0;i<n;i++){
+            Angles generation = tiragePalier() ;
+            std::vector<float> tmp ;
+            tmp.push_back(generation.Phi_res1) ;
+            tmp.push_back(generation.Phi_res2) ;
+            echantillon.addRow(tmp);
+            fichier << generation.Phi_res1 << " " << generation.Phi_res2 << std::endl;
+        }
+        if (fichier.is_open()) {
+            fichier.close();
+        }
+        else {std::cout<<"fichier non ouvert ?"<<std::endl;} 
+    }
+
+    void discretisation(float precision){ //La matrice echantillon est passée en référence (Matrix& echantillon).
+        //std::filesystem::path outputDir = "C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions";
+        //std::filesystem::path outputDir = "./Distributions_echantillon";
+        std::string nomFichier = "./Distributions_echantillon/"+name + "_" + std::to_string(precision) + ".txt";
+
+        // Ouvrir le fichier en mode lecture et écriture (création si inexistant)
+        std::fstream fichier(nomFichier, std::ios::in | std::ios::out | std::ios::app);
+
+        // Vérifier si l'ouverture a réussi
+        if (!fichier) {
+            std::cerr << "Erreur lors de l'ouverture du fichier !" << std::endl;
+            return;
         }
 
-        void affiche_image() {
-            if (data.empty()) {
-                std::cerr << "Aucune donnée à afficher." << std::endl;
-                return;
+        std::vector<std::vector<int>> table; // Déclare un vecteur de vecteurs de chaînes pour représenter la matrice.
+        std::vector<int> zeroRow(static_cast<int>(std::round(2*M_PI / precision)+1), 0);
+
+        for (int i=1; i <= std::round(2*M_PI/precision)+1; i++){ //Créer la matrice remplit de 0.
+            table.push_back(zeroRow);
+        }
+        
+        for (size_t i = 0; i < data.size(); i++) { 
+            try {
+                // Convertit la première colonne en float (X).
+                float x = data[i][0] + M_PI;  
+
+                // Convertit la deuxième colonne en float (Y).
+                float y = data[i][1] + M_PI;  
+
+                // Arrondi les valeurs en fonction de la précision demandée.
+                int x_round = std::round(x / precision);
+                int y_round = std::round(y / precision);
+                //std::cout<<"x, y"<< std::ceil(2*M_PI / precision) << " "<< x_round<<" "<<y_round<<std::endl;
+                //remplissage de la matrice
+                if (x_round < 0 || x_round >= table.size() || y_round < 0 || y_round >= table.size()) {
+                    std::cout<<"valeur prob "<<x<<" "<<y<<std::endl;
+                    std::cerr << "Erreur : indices hors limites ! x_round=" << x_round << ", y_round=" << y_round << std::endl;
+                    
+                } else {
+                    table[y_round][x_round] += 1;
+                }
+                
+
+            } 
+            catch (const std::exception& e) { // Capture les erreurs éventuelles (ex: conversion impossible)
+                std::cerr << "Erreur de conversion à la ligne " << i << ": " << e.what() << std::endl;
             }
-    
-            int rows = data.size();
-            int cols = data[0].size();
-            int scale = 10; // Facteur d'agrandissement
-            cv::Mat img(rows * scale, cols * scale, CV_8UC1);
-    
-            float max_val = 0;
-            for (const auto& row : data) {
-                for (float val : row) {
-                    if (val > max_val) {
-                        max_val = val;
-                    }
+        }
+        //Ecrire la matrice dans le txt
+        for (auto& row : table){
+            for (auto& value : row){
+                fichier << value << " ";
+            }
+            fichier << std::endl;
+        }    
+        if (fichier.is_open()) {
+            fichier.close();
+        }
+        else {std::cout<<"fichier non ouvert ?"<<std::endl;} 
+        //std::cout << "Fini !"<<std::endl;
+    } // fin discretisation
+
+
+    void affiche_image() {
+        if (data.empty()) {
+            std::cerr << "Aucune donnée à afficher." << std::endl;
+            return;
+        }    
+        int rows = data.size();
+        int cols = data[0].size();
+        int scale = 10; // Facteur d'agrandissement
+        cv::Mat img(rows * scale, cols * scale, CV_8UC1);    
+        float max_val = 0;
+        for (const auto& row : data) {
+            for (float val : row) {
+                if (val > max_val) {
+                    max_val = val;
                 }
             }
+        }
     
-            for (int i = 0; i < rows; i++) {
-                for (int j = 0; j < cols; j++) {
-                    uchar pixel_value = static_cast<uchar>((data[i][j] * 255) / max_val);
-                    cv::rectangle(img, 
-                                  cv::Point(j * scale, (rows - 1 - i) * scale), // Inversion des lignes
-                                  cv::Point((j + 1) * scale - 1, (rows - i) * scale - 1),
-                                  cv::Scalar(pixel_value),
-                                  cv::FILLED);
-                }
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                uchar pixel_value = static_cast<uchar>((data[i][j] * 255) / max_val);
+                cv::rectangle(img, 
+                                cv::Point(j * scale, (rows - 1 - i) * scale), // Inversion des lignes
+                                cv::Point((j + 1) * scale - 1, (rows - i) * scale - 1),
+                                cv::Scalar(pixel_value),
+                                cv::FILLED);
             }
-    
-            cv::Mat img_color;
-            cv::applyColorMap(img, img_color, cv::COLORMAP_JET);
-    
-            // Enregistrement de l'image
-            std::string filename = name + ".png";
-            cv::imwrite(filename, img_color);
-            std::cout << "Image sauvegardée sous: " << filename << std::endl;
-    
-            cv::imshow("Matrice Colorée", img_color);
-            cv::waitKey(0);
+        }    
+        cv::Mat img_color;
+        cv::applyColorMap(img, img_color, cv::COLORMAP_JET);    
+        // Enregistrement de l'image
+        std::string filename = name + ".png";
+        cv::imwrite(filename, img_color);
+        std::cout << "Image sauvegardée sous: " << filename << std::endl;    
+        cv::imshow("Matrice Colorée", img_color);
+        cv::waitKey(0);
     }
 };
 
@@ -193,15 +426,24 @@ public :
 
 int main() {
     Matrix_Distrib ds;
-    ds.ReadFrom_txt("C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions/ALA_ALA_ALA_0.300000.txt");
+    Matrix_Distrib echantillon ;
+    ds.ReadFrom_txt("./Distributions/ALA_ALA_ALA_0.300000.txt");
         //C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions_test/AAA_AAA_AAA_0.300000.txt");
     ds.normalisation() ;
     //ds.affiche();
     //std::cout<<ds.norme()<<std::endl;
 
-    Angles test = ds.tirage() ;
-    std::cout << "Point : (" << test.Phi_res1 << ", " << test.Phi_res2 << ")" << std::endl;
-    ds.affiche_image();
+    //Angles test = ds.tirageQuadratique() ;
+    //std::cout << "Point : (" << test.Phi_res1 << ", " << test.Phi_res2 << ")" << std::endl;
+    //ds.affiche_image();
+
+    ds.create_echantillon(echantillon) ;
+    echantillon.change_precision(0.3) ;
+    echantillon.change_name("echantillon") ;
+    echantillon.discretisation(0.3);
+    Matrix_Distrib distrib_echantillon;
+    distrib_echantillon.ReadFrom_txt("C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions_echantillon/echantillon_0.300000.txt");
+    distrib_echantillon.affiche_image() ;
 
     return 0;
 }
