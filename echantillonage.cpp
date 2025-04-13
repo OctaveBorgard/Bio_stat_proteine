@@ -56,10 +56,9 @@ std::vector<float> solve(std::vector<std::vector<float>> A, std::vector<float> Y
 }
 
 std::vector<float> interpolerLinear(float x1, float y1, float x2, float y2) {
-    std::vector<float> X(3);
-    X[0] = 0 ;
-    X[1] = (y2-y1)/(x2-x1) ;
-    X[2] = y1-X[1]*x1 ;
+    std::vector<float> X(2);
+    X[0] = (y2-y1)/(x2-x1) ;
+    X[1] = y1-X[0]*x1 ;
     return X ;
 }
 // Fonction d'interpolation quadratique
@@ -76,11 +75,54 @@ std::vector<float> interpolerQuadratique(float x1, float y1, float x2, float y2,
 
 
 // Fonction densité f(x) = ax^2 + bx + c
-float density(float x, float a, float b, float c) {
+float density_quadratique(float x, float a, float b, float c) {
     return a*x*x + b*x + c;
 }
 
-float methodeRejet(float a, float b, float c, float xmin, float xmax) {
+float density_lineaire(float x, float a, float b) {
+    return a*x + b;
+}
+
+float methodeRejet_lineaire(float centroide, float precision, float x1, float y1, float x2, float y2, float x3, float y3) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    double xmin = centroide-precision/2 ;
+    double xmax = centroide+precision/2 ;
+    float zeros = 0.0;
+    xmin =  std::max(xmin, -M_PI);
+    xmax =  std::min(xmax, M_PI) ;
+    std::uniform_real_distribution<> dist_x(xmin, xmax);
+    //std::cout<<"min, max "<<xmin<< " "<<xmax<<std::endl;
+    float a1, b1, a2, b2 ;
+    std::vector<float> coef_tmp = interpolerLinear(x1, y1, x2, y2) ;
+    a1 = coef_tmp[0];
+    b1 = coef_tmp[1] ;
+    coef_tmp = interpolerLinear(x1, y1, x3, y3) ;
+    a2 = coef_tmp[0];
+    b2 = coef_tmp[1] ;
+    //std::cout<<"a1, b1, a2, b2 "<<a1<<" "<<b1<<" "<<a2<<" "<<b2<< " "<<std::endl;
+    // Trouver le maximum de f(x) sur [xmin, xmax]
+    float fmax ;
+    fmax = std::max({density_lineaire(xmin, a1, b1), density_lineaire(xmax, a2, b2), density_lineaire(centroide, a1, b1)});
+    
+    //std::cout<<"fmax "<<density_lineaire(xmin, a1, b1)<< " " << density_lineaire(xmax, a2, b2) << " "<<density_lineaire(centroide, a1, b1) <<std::endl;
+
+    std::uniform_real_distribution<> dist_y(0.0, fmax);
+
+    int secure = 0 ;
+    while (secure <= 10000) {
+        float x = dist_x(gen);
+        float y = dist_y(gen);
+
+        if ((x<= centroide & y <= density_lineaire(x, a1, b1))||(x>=centroide & y<=density_lineaire(x, a2, b2))) {
+            return x;
+        }
+        secure += 1;
+    }
+    std::cout << "Aucun tirage réussi" <<std::endl;
+}
+
+float methodeRejet_quadra(float a, float b, float c, float xmin, float xmax) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dist_x(xmin, xmax);
@@ -88,10 +130,10 @@ float methodeRejet(float a, float b, float c, float xmin, float xmax) {
     // Trouver le maximum de f(x) sur [xmin, xmax]
     float fmax ;
     if (a!=0 & xmin <-b/(2*a) & -b/(2*a)<xmax){
-        fmax = std::max({density(xmin, a, b, c), density(xmax, a, b, c),
-            density(-b/(2*a), a, b, c)}); // sommet de la parabole
+        fmax = std::max({density_quadratique(xmin, a, b, c), density_quadratique(xmax, a, b, c),
+            density_quadratique(-b/(2*a), a, b, c)}); // sommet de la parabole
     } else{
-        fmax = std::max({density(xmin, a, b, c), density(xmax, a, b, c)});
+        fmax = std::max({density_quadratique(xmin, a, b, c), density_quadratique(xmax, a, b, c)});
     }
 
     std::uniform_real_distribution<> dist_y(0.0, fmax);
@@ -101,7 +143,7 @@ float methodeRejet(float a, float b, float c, float xmin, float xmax) {
         float x = dist_x(gen);
         float y = dist_y(gen);
 
-        if (y <= density(x, a, b, c)) {
+        if (y <= density_quadratique(x, a, b, c)) {
             return x;
         }
         secure += 1;
@@ -237,8 +279,57 @@ public :
             col = 0.0 ;
         }
         return {0, 0};
+    }
+
+    Angles tirageLineaire(){
+        std::random_device rd;  
+        std::mt19937 gen(rd()); 
+        std::uniform_real_distribution<float> distrib(0.0, 1.0);
+        double random_number = distrib(gen);
+        float compte = 0;
+        float line = 0 ;
+        float col = 0 ;
+        float phi1, phi2;
+        std::vector<float> coef_spline ;
+        float a, b, c ;
+        float zeros = 0.0 ;
+        for (auto& row : data){
+            for (auto& value : row){
+                compte += value;
+                if (compte>=random_number){
+                    //std::cout<<"col line "<<col<<" "<<line<<std::endl;
+                    if (col == 0){
+                        //std::cout<<(col)*precision-M_PI<<" "<< value<< " "<<(-1)*precision-M_PI<<" "<< data[line][data.size()-1]<<" "<< (col+1)*precision-M_PI<<" "<< data[line][col+1]<<std::endl;
+                        phi1 = methodeRejet_lineaire(col*precision-M_PI, precision, (col)*precision-M_PI, value, (-1)*precision-M_PI, data[line][data.size()-1], (col+1)*precision-M_PI, data[line][col+1]) ;
+                    } else if (col+1 >= data.size()){
+                        phi1 = methodeRejet_lineaire(col*precision-M_PI, precision,(col)*precision-M_PI, value, (col-1)*precision-M_PI, data[line][col-1], (col+1)*precision-M_PI, data[line][0]);
+                    } else {
+                        phi1 = methodeRejet_lineaire(col*precision-M_PI, precision,(col)*precision-M_PI, value, (col-1)*precision-M_PI, data[line][col-1], (col+1)*precision-M_PI, data[line][col+1]) ;
+                    };
+                    //std::cout<<"end phi1 "<<std::endl;
+
+                    if (line == 0){
+                        phi2 = methodeRejet_lineaire(line*precision-M_PI, precision, (line)*precision-M_PI, value, (-1)*precision-M_PI, data[data.size()-1][col], (line+1)*precision-M_PI, data[line+1][col]) ;
+                    } else if (line+1 >= data.size()){
+                        phi2 = methodeRejet_lineaire(line*precision-M_PI, precision, (line)*precision-M_PI, value, (line-1)*precision-M_PI, data[line-1][col], (line+1)*precision-M_PI, data[0][col]) ;
+                    } else {
+                        phi2 = methodeRejet_lineaire(line*precision-M_PI, precision, (line)*precision-M_PI, value, (line-1)*precision-M_PI, data[line-1][col], (line+1)*precision-M_PI, data[line+1][col]) ;
+                    };
+                    //std::cout<<"end phi2 "<<std::endl;
+
+                    Angles angl = {phi1, phi2} ;
+                
+                    return angl ;
+                }
+                col += 1.0 ;
+            }
+            col = 0.0 ;
+            line += 1.0 ;
+        }
+        return {0, 0};
 
     }
+    
 
     Angles tirageQuadratique(){
         std::random_device rd;  
@@ -269,7 +360,7 @@ public :
                     a = coef_spline[0];
                     b = coef_spline[1];
                     c = coef_spline[2];
-                    phi1 = methodeRejet(a, b, c, std::max((col*precision-precision/2), zeros)-M_PI, std::min((col*precision+precision/2-M_PI), M_PI));
+                    phi1 = methodeRejet_quadra(a, b, c, std::max((col*precision-precision/2), zeros)-M_PI, std::min((col*precision+precision/2-M_PI), M_PI));
 
                     if (line == 0){
                         coef_spline = interpolerQuadratique((line)*precision-M_PI, value, (-1)*precision-M_PI, data[data.size()-1][col], (line+1)*precision-M_PI, data[line+1][col]) ;
@@ -281,7 +372,7 @@ public :
                     a = coef_spline[0];
                     b = coef_spline[1];
                     c = coef_spline[2];
-                    phi2 = methodeRejet(a, b, c, std::max((line*precision-precision/2), zeros)-M_PI, std::min((line*precision+precision/2-M_PI), M_PI));
+                    phi2 = methodeRejet_quadra(a, b, c, std::max((line*precision-precision/2), zeros)-M_PI, std::min((line*precision+precision/2-M_PI), M_PI));
                     Angles angl = {phi1, phi2} ;
                 
                     return angl ;
@@ -307,7 +398,7 @@ public :
             return;
         }
         for (int i =0;i<n;i++){
-            Angles generation = tiragePalier() ;
+            Angles generation = tirageLineaire() ;
             std::vector<float> tmp ;
             tmp.push_back(generation.Phi_res1) ;
             tmp.push_back(generation.Phi_res2) ;
@@ -440,10 +531,10 @@ int main() {
     ds.create_echantillon(echantillon) ;
     echantillon.change_precision(0.3) ;
     echantillon.change_name("echantillon") ;
-    echantillon.discretisation(0.3);
+    echantillon.discretisation(0.3);/*
     Matrix_Distrib distrib_echantillon;
     distrib_echantillon.ReadFrom_txt("C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions_echantillon/echantillon_0.300000.txt");
-    distrib_echantillon.affiche_image() ;
+    distrib_echantillon.affiche_image() ;*/
 
     return 0;
 }
