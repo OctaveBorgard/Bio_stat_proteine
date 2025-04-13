@@ -135,8 +135,11 @@ public:
             return;  // Quitte la fonction si la matrice n'a pas 2 colonnes.
         }
         
-        //std::filesystem::path outputDir = "C:/Users/Octave/Desktop/INSA4A_2/projet/code/Distributions";
-        std::filesystem::path outputDir = "./Distributions";
+        std::string folderName = "Distributions_" + std::to_string(precision);
+        std::filesystem::path outputDir = "C:/Users/Octave/Desktop/INSA4A_2/projet/code/" + folderName;
+        std::filesystem::create_directories(outputDir); // Crée le dossier si nécessaire
+
+        //std::filesystem::path outputDir = "./Distributions03";
         std::string nomFichier = (outputDir / (name + "_" + std::to_string(precision) + ".txt")).string();
 
         // Ouvrir le fichier en mode lecture et écriture (création si inexistant)
@@ -238,9 +241,15 @@ void readFileToMatrix(const std::string& filename, Matrix& matrix) {
     file.close(); // Ferme le fichier après lecture.
 }
 
-void Work_one_document(std::string filename){
+void Work_one_document(std::string filename, float precision){
     Matrix matrix; // Instancie un objet Matrix pour stocker les données.
     readFileToMatrix(filename, matrix); // Appelle la fonction pour lire les données du fichier .txt et remplir la matrice.
+
+    if (matrix.nb_row() < 60) {
+        std::cout << "Fichier ignoré (moins de 60 lignes) : " << filename << std::endl;
+        return;  // On ne traite pas ce fichier
+    }
+
     matrix.remove0(matrix.indice("CIS(0)/TRANS(1)")) ;
     matrix.removeColumn(matrix.indice("CIS(0)/TRANS(1)")); 
     matrix.removeColumn(matrix.indice("Res1")); 
@@ -256,30 +265,32 @@ void Work_one_document(std::string filename){
     //std::cout << "\nMatrice avant suppression :" << std::endl;
     //matrix.affiche(); // Appelle la méthode affiche() pour afficher la matrice avant modification.
     
-    //matrix.removeColumn(1); // Supprime la deuxième colonne (index 1) de la matrice en appelant la méthode removeColumn().
     
     //std::cout << "\nMatrice après suppression :" << std::endl;
-    matrix.affiche_name();
+    //matrix.affiche_name();
     //matrix.affiche(); // Affiche la matrice après suppression de la colonne.
     
 
     //ECHANTILLONNAGE
-    float precision = 0.3;  // Définit la précision pour arrondir les valeurs
+    //float precision = 0.3;  // Définit la précision pour arrondir les valeurs
     matrix.discretisation(precision); // Appliquer la discretisation
 }
 
 int main() {
-    std::string dossier = "../angles_scop-95_2.07-LGBTS-MF_0.6_0.2"; // Remplace par le chemin du dossier contenant les fichiers
+    //std::string dossier = "../angles_scop-95_2.07-LGBTS-MF_0.6_0.2"; // Remplace par le chemin du dossier contenant les fichiers
+    std::string dossier = "C:/Users/Octave/Desktop/INSA4A_2/projet/angles_scop-95_2.07-LGBTS-MF_0.6_0.2";
+    std::vector<float> precisions = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7};  // Ajoute ici toutes les précisions souhaitées
 
     try {
-        for (const auto& entry : std::filesystem::directory_iterator(dossier)) {
-            if (entry.is_regular_file()) { // Vérifie que c'est un fichier
-                Work_one_document(entry.path().string());
+        for (float precision : precisions) {
+            for (const auto& entry : std::filesystem::directory_iterator(dossier)) {
+                if (entry.is_regular_file()) {
+                    Work_one_document(entry.path().string(), precision);
+                }
             }
         }
     } catch (const std::exception& e) {
         std::cerr << "Erreur : " << e.what() << std::endl;
     }
-
     return 0;
 }
