@@ -1,0 +1,144 @@
+\documentclass{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with `a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{tocloft}
+
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage[a4paper,margin=1in]{geometry}  
+
+\title{Title}
+\author{Clara Lestruhaut and Octave Borgard}
+\date{}  
+
+
+\usepackage[a4paper,margin=1in]{geometry}  
+
+\begin{document}  
+
+\maketitle  
+
+\begin{abstract}
+
+The study of proteins is fundamental to understanding biological systems, as these macromolecules play a central role in nearly all cellular processes. A key aspect of protein structure lies in the angular distributions of amino acids, which influence folding, stability, and function. Existing methods for modeling these angular distributions often rely on complex algorithms, while accurate, tend to be computationally intensive and difficult to implement. Despite the success of these advanced techniques, no approach currently utilizes simpler statistical methods capable of achieving similar goals.  
+
+In this work, we propose an alternative method based on data discretisation and random sampling. This approach aims to model amino acid angular distributions through a simple pipeline, enabling the generation of new samples while keeping computations efficient. Despite its easier approach, our method enables a good analysis of amino acid angular distributions. To evaluate the effectiveness of our approach, we compared the generated distribution with real data using statistical tests.  Although we do not aim for a perfect reconstruction—given the simplicity of our method—we demonstrate that it provides a close approximation to the true distributions.
+
+We have shown that this method yields satisfactory results. While it may be less performant than more complex approaches, it remains entirely acceptable given its ease of implementation and low computational cost.
+
+\newline
+Keywords: Protein modeling, amino acid angles, statistical sampling, discretization, interpolation.  
+   
+    
+\end{abstract}
+\newpage
+% Insertion du sommaire
+\tableofcontents
+\newpage
+
+
+
+\section{Introduction}
+
+The study of proteins is fundamental for understanding biological systems, as these macromolecules play a central role in nearly all cellular processes. Beyond their biological significance, proteins are also of great interest in various applied fields. In pharmacology, they serve as therapeutic targets; in biotechnology, their catalytic properties are widely exploited; and in bio-nanotechnology, they are used as structural components of nanodevices. In all of these domains, a comprehensive understanding of the intricate relationships between protein sequence, structure, and function is essential.\\ 
+
+Proteins are composed of linear chains of amino acids, of which there are only twenty, each represented by a single-letter code. The primary structure of a protein refers to the specific sequence of these amino acids. However, protein function is largely determined by its three-dimensional conformation, which results from successive levels of structural organization. 
+The secondary structure describes local structural motifs, such as $\alpha$-helices and $\beta$-sheets, which fold further into the tertiary structure, forming the overall 3D shape of the protein. The polypeptide backbone consists of three covalent bonds per amino acid residue. Since the peptide bond is planar, only two degrees of rotational freedom remain, defined by the dihedral angles $\phi$ and $\psi$. These angles are critical for modeling protein folding and function.  \\
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.25\linewidth]{prot.jpg}
+    \caption{\label{fig:frog}Representation of the dihedral angles $\phi$ and $\psi$.}
+\end{figure}
+
+\subsection*{Selecting an appropriate method}  
+
+During the first semester, we have conducted a comparative analysis of three methodologies aimed at improving the understanding and modeling of amino acid angular distributions. \\
+
+The first article, “Neighbor-Dependent Ramachandran Probability Distributions of Amino Acids Developed from a Hierarchical Dirichlet Process Model,” has proposed an advanced statistical model based on the hierarchical Dirichlet process while considering the effects of neighboring amino acids. Despite its very good precision for loop conformation predictions, implementing the HDP has been complex and has required expensive algorithms, and may not have been very efficient for more regular protein structures.
+
+The second article, “Getting ‘ϕψχal’ with proteins: Minimum Message Length Inference of Joint Distributions of Backbone and Side Chain Dihedral Angles,” has proposed a second approach to the protein conformation modeling problem, based on rotamer libraries and the Minimum Message Length. This method has been quite efficient and has seemed easier to implement.
+
+The last article, “Deep Learning Methods for Protein Torsion Angle Prediction,” has developed four models based on deep learning, using neural networks and the Boltzmann machine. These methods have required an advanced computing infrastructure to train the models.\\
+
+After thorough assessment, we identified the Minimum Message Length (MML) method as the optimal compromise between predictive accuracy and computational feasibility. Consequently, we planned to implement this method in the second semester.  
+
+However, the proprietary nature of the MML algorithm posed a significant challenge, as the organization holding the rights to the code declined to share it. Given the complexity of re-implementing the entire algorithm from scratch, we were forced to explore an alternative approach.  
+
+This situation illustrates a common issue encountered by engineers: although a solution may exist and effectively address the problem, access to it can be restricted by intellectual property rights. In such cases, engineers must devise an alternative strategy, even if it involves certain limitations in performance.
+
+
+\subsection*{The alternative approach} 
+In response to these constraints, we opted for a simpler yet effective method: discretising and sampling the data (detailed methodology to follow). Despite its relative simplicity, this approach allows for robust analysis of amino acid angular distributions while maintaining computational efficiency.  
+
+First, we describe the methodology used to model the data, focusing on sampling, discretization, and interpolation. In the second part, we present our results and the tests performed to compare our distribution with the actual one. 
+
+\newpage
+
+\section{Experimental Setup and Strategy}
+
+\subsection{Dataset Overview}
+
+%8000 combinaisons donc 8000 fichiers. ok
+%On ne garde que les 2 angles. ok
+%On ne garde que les combinaisons qui ont plus de 60 exemple (il en reste 7363) ok
+%fichier preprocess 
+
+We have retrieved data describing the $\phi$, $\psi$ and $\omega$ angles, for each of the 8000 possible combinations of 3 aminate acids. \\
+We focused on the $\phi$ and $\psi$ angles of the central amino acid only. We selected combinations with sufficient data : with more than 60 angle values. 
+The value of the angle $\omega$ defines the conformation of the animated acid: If $\omega=0$, we obtain a cis conformation (U form), while if $\omega=\pi$, we obtain a trans conformation (Z form). Given the rarity of the cis configuration, we choose to ignore the data associated with this configuration. \\
+Only 7363 out of the 8000 were left. 
+
+
+
+\subsection{Discretization Strategy}
+%Discretization (centré) selon une même précision pour les 2 angles
+%Normalisation pour définir une distribution.
+%Image représentant la discrétization
+
+\subsection{Random Sampling Methods}
+
+We store the data in a vector of vectors, giving us easy access to the data we are interested in. We seek to express $\psi$ as a function of $\phi$ and store the result in a grid. 
+
+
+\subsubsection{Stepwise Sampling}
+%Méthode de tirage (uniforme pour selectionné le carré)
+%Graphique exemple d'une distribution par palier.
+\subsubsection{Linear Sampling}
+%Présentation de l'interpolation linéaire
+%Gestion des bords
+\subsubsection{Quadratic Sampling}
+%Présentation de l'interpolation Quadratique
+%Gestion des bords
+%Problème d'interprétation (valeur négative, interpolation différente sur des mêmes intervals)
+
+
+\subsection{Torus test}
+
+%comparaison des distributions
+
+
+\section{Results}
+
+% Résultat du test 
+% Critique
+
+\bibliographystyle{alpha}
+\bibliography{sample}
+
+
+### References (torus test) à faire
+
+González-Delgado J, González-Sanz A, Cortés J, Neuvial P: Two-sample goodness-of-fit tests on the flat torus based on Wasserstein distance and their relevance to structural biology. Electron. J. Statist., 17(1): 1547–1586, 2023. [[url](https://doi.org/10.1214/23-EJS2135)] [[HAL](https://hal.archives-ouvertes.fr/hal-03369795)].
+
+
+\end{document}
